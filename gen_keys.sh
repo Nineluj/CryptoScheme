@@ -1,4 +1,5 @@
 DIR="keys"
+mkdir -p $DIR
 
 for i in {1..4}
 do

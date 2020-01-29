@@ -51,12 +51,16 @@ if [ $mode == 0 ]; then
   error_quit "Mode was not set to encrypt or decrypt"
 fi
 
-WORKDIR="/tmp/cy5010crypto/"
+WORKDIR="tmp/"
 
 rm -rf $WORKDIR
 mkdir -p $WORKDIR
 
 if [ $mode == 1 ]; then
+  if [ $# != 7 ]; then
+    error_quit "Error: Invalid number of arguments"
+  fi
+
   # Start by generating a symmetric key that will be used to encrypt the data
   symm_key_path="$WORKDIR/symm_key"
   openssl rand 256 > $symm_key_path
@@ -67,12 +71,12 @@ if [ $mode == 1 ]; then
   openssl rsautl -encrypt -inkey "$4" -pubin -in $symm_key_path -out $WORKDIR/key3.penc
 
   # Encrypt the data file using the symmetric key
-  openssl enc -aes-256-cbc -salt -in SECRET_FILE -out SECRET_FILE.enc -pass file:$symm_key_path
-  tar -czvf "$6" $WORKDIR
+  openssl enc -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -in "$6" -out $WORKDIR/data.enc -pass file:$symm_key_path
 
-  if [ $# != 7 ]; then
-    error_quit "Error: Invalid number of arguments"
-  fi
+  # Make sure we delete the symm key so that it needs to be decrypted by the receivers instead
+  rm $symm_key_path
+
+  tar czf "$7" $WORKDIR
 fi
 
 if [ $mode == 2 ]; then
@@ -80,3 +84,5 @@ if [ $mode == 2 ]; then
       error_quit "Error: Invalid number of arguments"
     fi
 fi
+
+rm -rf $WORKDIR
