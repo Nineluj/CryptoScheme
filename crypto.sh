@@ -1,5 +1,8 @@
 #!/bin/bash
 
+WORKDIR="tmp"
+symm_key_path="$WORKDIR/symm_key"
+
 # Function for showing the user how the script is meant to be used
 show_help() {
 cat << EOF
@@ -23,6 +26,11 @@ error_quit() {
 echo "Error: $1"
 echo "Run with -h flag for help on how to use the script"
 exit 1
+}
+
+exit_clean() {
+  rm -r "$WORKDIR"
+  exit 1
 }
 
 mode=0
@@ -51,8 +59,6 @@ if [ $mode == 0 ]; then
   error_quit "Mode was not set to encrypt or decrypt"
 fi
 
-WORKDIR="tmp/"
-
 rm -rf $WORKDIR
 mkdir -p $WORKDIR
 
@@ -61,8 +67,17 @@ if [ $mode == 1 ]; then
     error_quit "Error: Invalid number of arguments"
   fi
 
+  ## Arguments
+  # $2 -> public key 1
+  # $3 -> public key 2
+  # $4 -> public key 3
+  # $5 -> private key
+  # $6 -> data file
+  # $7 -> output (encrypted) file
+
+  echo "Encrypting file $6 to be shared with group"
+
   # Start by generating a symmetric key that will be used to encrypt the data
-  symm_key_path="$WORKDIR/symm_key"
   openssl rand 256 > $symm_key_path
 
   # Use all the public keys to encrypt the symmetric key
@@ -71,7 +86,7 @@ if [ $mode == 1 ]; then
   openssl rsautl -encrypt -inkey "$4" -pubin -in $symm_key_path -out $WORKDIR/key3.penc
 
   # Create a signed digest of the data file
-  openssl rsautl -sha512 -sign "$5" -out $WORKDIR/digest.sha512 "$6"
+  openssl dgst -sha512 -sign "$5" -out $WORKDIR/digest.sha512 "$6"
 
   # Encrypt the data file using the symmetric key
   openssl enc -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -in "$6" -out $WORKDIR/data.enc -pass file:$symm_key_path
@@ -81,12 +96,57 @@ if [ $mode == 1 ]; then
 
   # Create the output file
   tar czf "$7" $WORKDIR
+
+  echo "Successfully encrypted data, output file: $7"
 fi
 
 if [ $mode == 2 ]; then
   if [ $# != 5 ]; then
       error_quit "Error: Invalid number of arguments"
-    fi
+  fi
+
+  ## Arguments
+  # $2 -> private key (own)
+  # $3 -> public key (sender's)
+  # $4 -> encrypted file
+  # $5 -> output (decrypted) file
+
+  echo "Decrypting file $4"
+
+  # Extract ciphertext to tmp folder
+  tar -xzvf "$4" > /dev/null 2>&1
+
+  # Try to decrypt one of the key files
+  for i in {1..3}
+    do
+      openssl rsautl -decrypt -inkey "$2" -in "$WORKDIR/key$i.penc" -out $symm_key_path > /dev/null 2>&1
+    done
+
+  # If we are successful then the $symm_key_path file exists, exit if fail
+  if [ ! -f $symm_key_path ]; then
+    echo "You do not have the ability to decrypt the file"
+    exit_clean
+  fi
+
+  openssl enc -d -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -in $WORKDIR/data.enc -out $WORKDIR/decrypted \
+    -pass file:$symm_key_path > /dev/null 2>&1
+
+  if [ ! -f $WORKDIR/decrypted ]; then
+    echo "Unable to decrypt the file with the symmetric key. The cipher file is probably corrupted."
+    exit_clean
+  fi
+
+  VERIFY_RESULT=openssl dgst -sha512 -verify "$3" -signature $WORKDIR/digest.sha512 $WORKDIR/decrypted
+
+  if [ "$VERIFY_RESULT" -eq 0 ]; then
+    echo "Successfully decrypted, verified integrity and authenticity of file"
+  else
+    echo "File was decrypted but could not be verified as authentic. Aborting."
+    exit_clean
+  fi
+
+  mv $WORKDIR/decrypted "$5"
 fi
 
 rm -rf $WORKDIR
+exit 0
