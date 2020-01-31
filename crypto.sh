@@ -70,12 +70,16 @@ if [ $mode == 1 ]; then
   openssl rsautl -encrypt -inkey "$3" -pubin -in $symm_key_path -out $WORKDIR/key2.penc
   openssl rsautl -encrypt -inkey "$4" -pubin -in $symm_key_path -out $WORKDIR/key3.penc
 
+  # Create a signed digest of the data file
+  openssl rsautl -sha512 -sign "$5" -out $WORKDIR/digest.sha512 "$6"
+
   # Encrypt the data file using the symmetric key
   openssl enc -aes-256-cbc -md sha512 -pbkdf2 -iter 100000 -in "$6" -out $WORKDIR/data.enc -pass file:$symm_key_path
 
   # Make sure we delete the symm key so that it needs to be decrypted by the receivers instead
   rm $symm_key_path
 
+  # Create the output file
   tar czf "$7" $WORKDIR
 fi
 
