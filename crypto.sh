@@ -136,9 +136,10 @@ if [ $mode == 2 ]; then
     exit_clean
   fi
 
-  VERIFY_RESULT=openssl dgst -sha512 -verify "$3" -signature $WORKDIR/digest.sha512 $WORKDIR/decrypted
+  openssl dgst -sha512 -verify "$3" -signature $WORKDIR/digest.sha512 $WORKDIR/decrypted > /dev/null 2>&1
+  RETVAL=$?
 
-  if [ "$VERIFY_RESULT" -eq 0 ]; then
+  if [ "$RETVAL" -eq 0 ]; then
     echo "Successfully decrypted, verified integrity and authenticity of file"
   else
     echo "File was decrypted but could not be verified as authentic. Aborting."
