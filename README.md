@@ -2,6 +2,8 @@
 
 ## Example usage
 
+> TA: You can skip this part since the keys are already in the keys/ directory
+
 Creating the keys to use
 ```shell script
 # Make the file executable

@@ -120,6 +120,13 @@ if [ $mode == 2 ]; then
   for i in {1..3}
     do
       openssl rsautl -decrypt -inkey "$2" -in "$WORKDIR/key$i.penc" -out $symm_key_path > /dev/null 2>&1
+      RETVAL=$?
+
+      # If we could decrypt that file we stop so that we don't overwrite the symm_key_path file with invalid data
+      # from another failed encryption
+      if [ "$RETVAL" -eq 0 ]; then
+        break
+      fi
     done
 
   # If we are successful then the $symm_key_path file exists, exit if fail
